@@ -64,7 +64,9 @@ class MonitorIntegrador(PatternMatchingEventHandler):
             xml_string = xml_source.read()
             parsed = xmltodict.parse(xml_string)
             self.observer.src_path = event.src_path
-            self.observer.resposta = parsed.get('Integrador', {}).get('Resposta', {}).get('retorno')
+            self.observer.resposta = parsed.get('Integrador', {}).get('Resposta', {}).get('retorno') or parsed.get(
+                'Integrador', {}).get('Resposta', {}).get('IdPagamento') or parsed.get('Integrador', {}).get('Resposta',
+                                                                                                             {})
             self.observer.numero_identificador = parsed.get('Integrador', {}).get('Identificador', {}).get('Valor')
 
     def on_modified(self, event):
