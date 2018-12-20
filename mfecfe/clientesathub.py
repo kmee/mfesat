@@ -25,7 +25,7 @@ from satcomum import constantes
 
 import satcfe
 
-from .base import FuncoesSAT, FuncoesVFPE
+from .base import FuncoesSAT, FuncoesVFPE, NumeroSessaoMemoria
 
 from .resposta import RespostaAtivarSAT
 from .resposta import RespostaCancelarUltimaVenda
@@ -69,11 +69,14 @@ class ClienteSATHub(FuncoesSAT):
 
     """
 
-    def __init__(self, host, port, numero_caixa=1, baseurl='/hub/v1'):
+    def __init__(self, host, port, numero_caixa=1, baseurl='/hub/v1', numerador_sessao=False, codigo_ativacao=None):
         self._host = host
         self._port = port
         self._numero_caixa = numero_caixa
+        self._numerador_sessao = numerador_sessao or NumeroSessaoMemoria()
         self._baseurl = baseurl
+        self._ultima_sessao = False
+        self._codigo_ativacao = codigo_ativacao
 
     def _request_headers(self):
         headers = {
@@ -122,7 +125,7 @@ class ClienteSATHub(FuncoesSAT):
             conteudo.get('retorno'))
 
     def enviar_dados_venda(self, dados_venda, codigo_ativacao,
-                           integrador=False, numero_identificador=False):
+                           integrador=False):
         """Sobrepõe :meth:`~satcfe.base.FuncoesSAT.enviar_dados_venda`.
 
         :return: Uma resposta SAT especializada em ``EnviarDadosVenda``.
@@ -133,7 +136,7 @@ class ClienteSATHub(FuncoesSAT):
             dados_venda=dados_venda.documento(),
             codigo_ativacao=codigo_ativacao,
             caminho_integrador=integrador,
-            numero_identificador=numero_identificador
+            numero_sessao=self.gerar_numero_sessao(),
         )
         conteudo = resp.json()
         return RespostaEnviarDadosVenda.analisar(conteudo.get('retorno'))
@@ -199,7 +202,8 @@ class ClienteSATHub(FuncoesSAT):
         :rtype: satcfe.resposta.padrao.RespostaSAT
         """
         resp = self._http_post('consultarnumerosessao',
-                               numero_sessao=numero_sessao)
+                               numero_sessao=numero_sessao,
+                               codigo_ativacao=self._codigo_ativacao)
         conteudo = resp.json()
         return RespostaConsultarNumeroSessao.analisar(conteudo.get('retorno'))
 
@@ -304,11 +308,12 @@ class ClienteSATHub(FuncoesSAT):
 
 class ClienteVfpeHub(FuncoesVFPE):
 
-    def __init__(self, host, port, numero_caixa=1, baseurl='/hub/v1'):
+    def __init__(self, host, port, numero_caixa=1, baseurl='/hub/v1', chave_acesso_validador=None):
         self._host = host
         self._port = port
         self._numero_caixa = numero_caixa
         self._baseurl = baseurl
+        self._chave_acesso_validador = chave_acesso_validador
 
     def _request_headers(self):
         headers = {
@@ -335,7 +340,7 @@ class ClienteVfpeHub(FuncoesVFPE):
             self, chave_requisicao, estabelecimento, serial_pos, cnpjsh,
             bc_icms_proprio, valor, multiplos_pag,
             anti_fraude, moeda, numero_caixa, chave_acesso_validador,
-            integrador=False, numero_identificador=False):
+            integrador=False):
         resp = self._http_post(
             'enviarpagamento',
             chave_requisicao=chave_requisicao,
@@ -351,7 +356,6 @@ class ClienteVfpeHub(FuncoesVFPE):
             origem_pagamento=numero_caixa,
             chave_acesso_validador=chave_acesso_validador,
             caminho_integrador=integrador,
-            numero_identificador=numero_identificador
         )
         conteudo = resp.json()
         return conteudo.get('retorno')
@@ -360,6 +364,20 @@ class ClienteVfpeHub(FuncoesVFPE):
             self, cnpj, id_fila, numero_caixa,
             chave_acesso_validador, integrador=False
     ):
+        resp = self._http_post(
+            'verificarstatusvalidador',
+            chave_acesso_validador=chave_acesso_validador,
+            numero_caixa=numero_caixa,
+            cnpj=cnpj,
+            id_fila=id_fila,
+            caminho_integrador=integrador
+        )
+        conteudo = resp.json()
+        return conteudo.get('retorno')
+
+    def verificar_status_validador(self, cnpj, id_fila, numero_caixa,
+            chave_acesso_validador, integrador=False):
+
         resp = self._http_post(
             'verificarstatusvalidador',
             chave_acesso_validador=chave_acesso_validador,

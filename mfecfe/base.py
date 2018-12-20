@@ -260,7 +260,9 @@ class FuncoesSAT(object):
         self._biblioteca = biblioteca
         self._codigo_ativacao = codigo_ativacao
         self._numerador_sessao = numerador_sessao or NumeroSessaoMemoria()
+        self._numerador_identificador = NumeroSessaoMemoria()
         self._path = os.path.join(os.path.dirname(__file__), 'templates')
+        self._ultima_sessao = False
 
 
     @property
@@ -275,7 +277,16 @@ class FuncoesSAT(object):
 
     def gerar_numero_sessao(self):
         """Gera o número de sessão para a próxima invocação de função SAT."""
-        return self._numerador_sessao()
+
+        if isinstance(self._numerador_sessao, basestring):
+            numero_sessao = self._numerador_sessao
+            if self._ultima_sessao == numero_sessao:
+                raise ValueError('Troque o número da sessao!')
+            self._ultima_sessao = numero_sessao
+        else:
+            numero_sessao = self._numerador_sessao()
+
+        return numero_sessao
 
     def __getattr__(self, name):
         if name.startswith('invocar__'):
@@ -289,16 +300,11 @@ class FuncoesSAT(object):
                 self.__class__.__name__, name))
 
     def comando_sat(self, template, **kwargs):
-        if kwargs['consulta']['numero_identificador'] != 'False':
-            numero_identificador = kwargs.get(
-                'numero_sessao',
-                kwargs['consulta']['numero_identificador'],
-            )
-        else:
-            numero_identificador = kwargs.get(
-                'numero_sessao',
-                self.gerar_numero_sessao(),
-            )
+
+        numero_identificador = kwargs.get(
+            'numero_identificador',
+            NumeroSessaoMemoria()(),
+        )
 
         kwargs['numero_identificador'] = numero_identificador
         path_file = self.biblioteca.caminho+'input/' + str(numero_identificador) + '-' + template.lower()
@@ -390,7 +396,7 @@ class FuncoesSAT(object):
         }
         return self.comando_sat('ComunicarCertificadoICPBRASIL.xml', consulta=consulta)
 
-    def enviar_dados_venda(self, dados_venda, numero_identificador):
+    def enviar_dados_venda(self, dados_venda):
         """Função ``EnviarDadosVenda`` conforme ER SAT, item 6.1.3. Envia o
         CF-e de venda para o equipamento SAT, que o enviará para autorização
         pela SEFAZ.
@@ -401,19 +407,16 @@ class FuncoesSAT(object):
         :return: Retorna *verbatim* a resposta da função SAT.
         :rtype: string
         """
+
+        # Tanto o sathub quanto o satlocal! Executem a logica.
+
         cfe_venda = dados_venda \
             if isinstance(dados_venda, basestring) \
             else dados_venda.documento()
-        if isinstance(self._numerador_sessao, basestring):
-            numero_sessao = self._numerador_sessao
-        else:
-            numero_sessao = self.gerar_numero_sessao()
         consulta = {
-            'numero_sessao': numero_sessao,
+            'numero_sessao': self.gerar_numero_sessao(),
             'codigo_ativacao': self._codigo_ativacao,
             'cfe_venda': cfe_venda,
-            'numero_documento': 10,  # FIXME
-            'numero_identificador': numero_identificador,  # FIXME
         }
         return self.comando_sat('EnviarDadosVenda.xml', consulta=consulta)
 
@@ -673,20 +676,15 @@ class FuncoesSAT(object):
 
 
 class FuncoesVFPE(object):
-    def __init__(self, biblioteca, chave_acesso_validador=None, numerador_sessao=None):
+    def __init__(self, biblioteca, chave_acesso_validador=None):
         self._biblioteca = biblioteca
         self._chave_acesso_validador = chave_acesso_validador
-        self._numerador_sessao = numerador_sessao or NumeroSessaoMemoria()
         self._path = os.path.join(os.path.dirname(__file__), 'templates/')
 
 
     @property
     def biblioteca(self):
         return self._biblioteca
-
-    def gerar_numero_sessao(self):
-        """Gera o número de sessão para a próxima invocação de função SAT."""
-        return self._numerador_sessao()
 
     @property
     def chave_acesso_validador(self):
@@ -705,16 +703,10 @@ class FuncoesVFPE(object):
                 self.__class__.__name__, name))
 
     def comando_vfpe(self, template, **kwargs):
-        if kwargs['numero_identificador'] != 'False':
-            numero_identificador = kwargs.get(
-                'numero_sessao',
-                kwargs['numero_identificador'],
-            )
-        else:
-            numero_identificador = kwargs.get(
-                'numero_sessao',
-                self.gerar_numero_sessao(),
-            )
+        numero_identificador = kwargs.get(
+            'numero_identificador',
+            NumeroSessaoMemoria()(),
+        )
 
         kwargs['numero_identificador'] = numero_identificador
         path_file = self.biblioteca.caminho+'input/' + str(numero_identificador) + '-' + template.lower()
@@ -781,10 +773,10 @@ class FuncoesVFPE(object):
         return self.comando_vfpe('EnviarPagamentosEmArmazenamentoLocal.xml',
                                  consulta=consulta)
 
-    def enviar_pagamento(self, chave_requisicao, estabecimento, serial_pos,
-                         cpnj, icms_base, vr_total_venda,
-                         h_multiplos_pagamentos, h_anti_fraude,
-                         cod_moeda, origem_pagemento, numero_identificador):
+    def enviar_pagamento(self, chave_requisicao=False, estabecimento=False, serial_pos=False,
+                         cpnj=False, icms_base=False, vr_total_venda=False,
+                         h_multiplos_pagamentos=False, h_anti_fraude=False,
+                         cod_moeda=False, origem_pagemento=False, **kwargs):
         consulta = {
             'chave_acesso_validador': self._chave_acesso_validador,
             'chave_requisicao': chave_requisicao,
@@ -797,7 +789,6 @@ class FuncoesVFPE(object):
             'h_anti_fraude': h_anti_fraude,
             'cod_moeda': cod_moeda,
             'origem_pagemento': origem_pagemento,
-            'numero_identificador': numero_identificador
         }
         return self.comando_vfpe('EnviarPagamento.xml', consulta=consulta)
 
